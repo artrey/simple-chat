@@ -4,13 +4,30 @@
 #include <unistd.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <pthread.h>
+#include "utils.h"
 
-int check_socket(int sockfd)
+void read_data(int sockfd)
 {
-  int error_code;
-  int error_len;
-  getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &error_code, &error_len);
-  return error_code;
+  char buffer[100];
+  do
+  {
+    memset(buffer, 0, sizeof(buffer));
+
+    int result = read(sockfd, buffer, sizeof(buffer));
+    if (result == 0)
+    {
+      break;
+    }
+
+    printf("%s\n", buffer);
+  } while (1);
+}
+
+void *thread_func(void *arguments)
+{
+  int *sockfd = (int *)arguments;
+  read_data(*sockfd);
 }
 
 int main(int argc, char **argv)
@@ -22,10 +39,7 @@ int main(int argc, char **argv)
     return 1;
   }
 
-  struct sockaddr_in servaddr;
-  servaddr.sin_family = AF_INET;
-  servaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
-  servaddr.sin_port = htons(9855);
+  struct sockaddr_in servaddr = configure_socket(inet_addr("127.0.0.1"), 9855);
 
   if (connect(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) != 0)
   {
@@ -37,16 +51,22 @@ int main(int argc, char **argv)
     printf("Connected successfully\n");
   }
 
+  pthread_t thread;
+  pthread_create(&thread, NULL, thread_func, &sockfd);
+
   char user_input[100];
   while (1)
   {
-    printf("Input text: ");
+    // printf("Input text: ");
     int n = 0;
     while ((user_input[n++] = getchar()) != '\n')
     {
     }
 
     user_input[n - 1] = 0;
+
+    if (n == 1)
+      continue;
     write(sockfd, user_input, n);
 
     if (strcmp(user_input, "exit") == 0)
